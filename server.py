@@ -6,7 +6,7 @@ import io
 import requests
 import numpy as np
 import cv2
-import easyocr
+
 from PIL import Image
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -26,13 +26,7 @@ client = Groq(api_key=GROQ_API_KEY)
 # ====================================
 # ADVANCED OCR HELPERS (IMPROVED SCANNING)
 # ====================================
-ocr_reader = None
-def get_ocr():
-    global ocr_reader
-    if ocr_reader is None:
-        # Initializing once for performance
-        ocr_reader = easyocr.Reader(['en'], gpu=False)
-    return ocr_reader
+
 
 def enhance_for_ocr(cv_img):
     """OCR Accuracy penche logic mama"""
