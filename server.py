@@ -104,17 +104,34 @@ def recipes():
         data = request.json
         ingredients = data.get("ingredients","")
         profile = data.get("profile",{})
-        cuisine = data.get("cuisine","Healthy")
         lang = profile.get("language","en")
+        conditions = ", ".join(profile.get("conditions", []))
 
         prompt = f"""
-Create 5 healthy recipes using {ingredients}.
-Cuisine: {cuisine}
-Language: {lang}
+        You are SmartBite AI Chef. Respond in {lang}.
 
-Return JSON format with:
-recipes -> title, ingredients, instructions, prepTime, calories
-"""
+        STYLE:
+        - Use Massy local slang (Mama/Bangaram).
+        - Energetic and helpful tone.
+
+        DISH SELECTION RULES:
+        1. Nuvvu ichina ingredients batti EXACTLY 3 DIFFERENT DISH OPTIONS suggest cheyyali.
+        2. For each dish, provide a detailed 8-10 step procedure.
+        3. Choose dishes that are safe for the user's medical condition: {conditions}.
+
+        Return ONLY a JSON object with a 'recipes' key containing a list of 3 dishes:
+        {{
+          "recipes": [
+            {{
+              "name": "Dish Name",
+              "why": "Health benefit line",
+              "ingredients": ["item1", "item2"],
+              "procedure": "Detailed 8-10 steps"
+            }}
+          ],
+          "intro": "Idigo mama/bangaram, nee daggara unna items tho ee 3 racha dishes cheyochu. Edi kavalo select chesko!"
+        }}
+        """
 
         res = client.chat.completions.create(
             model=MODEL,
@@ -127,7 +144,7 @@ recipes -> title, ingredients, instructions, prepTime, calories
 
     except Exception as e:
         print("Recipe Error:",e)
-        return jsonify({"recipes":[]})
+        return jsonify({"recipes":[], "intro": "System busy mama!"})
 
 # ====================================
 # 3. CHAT ENGINE
@@ -139,15 +156,17 @@ def chat():
         msg = data.get("message")
         profile = data.get("profile",{})
         lang = profile.get("language","en")
+        gender = profile.get("gender", "male")
+        conditions = ", ".join(profile.get("conditions", []))
 
-        const system_msg = `You are SmartBite AI. Respond in ${lang}. 
-User Gender: ${profile.gender}.
-Conditions: ${profile.conditions}.
+        system_msg = f"""You are SmartBite AI. Respond in {lang}. 
+        User Gender: {gender}.
+        Conditions: {conditions}.
 
-STYLE RULES:
-1. If Male: Use 'Mama', 'Bhaiya'. If Female: Use 'Bangaram', 'Chelli'.
-2. Use Massy local slang (e.g., 'Gattiga', 'Sakkaga', 'Racha').
-3. Keep it very short. Use Bullet points. No long paragraphs.`;
+        STYLE RULES:
+        1. If Male: Use 'Mama', 'Bhaiya'. If Female: Use 'Bangaram', 'Chelli'.
+        2. Use Massy local slang (e.g., 'Gattiga', 'Sakkaga', 'Racha').
+        3. Keep it very short. Use Bullet points. No long paragraphs."""
 
         res = client.chat.completions.create(
             model=MODEL,
@@ -159,20 +178,18 @@ STYLE RULES:
 
         return jsonify({"text":res.choices[0].message.content})
 
-    except:
+    except Exception as e:
+        print("Chat Error:", e)
         return jsonify({"text":"System busy mama!"})
 
 # ====================================
-# 4. OCR ANALYZE (FIXED)
+# 4. OCR ANALYZE
 # ====================================
 @app.route("/ocr-analyze", methods=["POST"])
 def ocr_analyze():
     try:
         data = request.json
-
-        # Since easyocr removed, use fallback text
         text = data.get("text","Food Label")
-
         lang = data.get("profile",{}).get("language","en")
 
         analysis = groq_analyze(data.get("profile",{}), text, lang)
