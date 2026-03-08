@@ -140,7 +140,14 @@ def chat():
         profile = data.get("profile",{})
         lang = profile.get("language","en")
 
-        system_msg = f"You are SmartBite AI. Respond in {lang}. Conditions: {profile.get('conditions')}."
+        const system_msg = `You are SmartBite AI. Respond in ${lang}. 
+User Gender: ${profile.gender}.
+Conditions: ${profile.conditions}.
+
+STYLE RULES:
+1. If Male: Use 'Mama', 'Bhaiya'. If Female: Use 'Bangaram', 'Chelli'.
+2. Use Massy local slang (e.g., 'Gattiga', 'Sakkaga', 'Racha').
+3. Keep it very short. Use Bullet points. No long paragraphs.`;
 
         res = client.chat.completions.create(
             model=MODEL,
