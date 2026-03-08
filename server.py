@@ -23,8 +23,22 @@ ROBOFLOW_WORKFLOW_URL = os.environ.get("ROBOFLOW_WORKFLOW_URL")
 MODEL = "llama-3.3-70b-versatile"
 client = Groq(api_key=GROQ_API_KEY)
 
+# Language Mapping Helper
+def get_language_full_name(lang_code):
+    mapping = {
+        "en": "English",
+        "te": "Telugu (తెలుగు)",
+        "hi": "Hindi (हिन्दी)",
+        "ta": "Tamil (தமிழ்)",
+        "kn": "Kannada (ಕನ್ನಡ)",
+        "gu": "Gujarati (ગુજરાતી)",
+        "bn": "Bengali (বাংলা)",
+        "mr": "Marathi (మరాఠీ)"
+    }
+    return mapping.get(lang_code, "English")
+
 # ====================================
-# ADVANCED OCR HELPERS (IMPROVED SCANNING)
+# ADVANCED OCR HELPERS
 # ====================================
 @app.route("/")
 def home():
@@ -35,9 +49,9 @@ def enhance_for_ocr(cv_img):
     gray = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
     denoised = cv2.fastNlMeansDenoising(gray, h=10)
     thresh = cv2.adaptiveThreshold(
-        denoised,255,
+        denoised, 255,
         cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY,11,2
+        cv2.THRESH_BINARY, 11, 2
     )
     return thresh
 
@@ -58,26 +72,26 @@ def groq_analyze(profile, food, lang="en"):
     if not food or food.strip() == "":
         food = "Unknown Item"
 
-    lang_instruction = f"IMPORTANT: Respond ONLY in {lang} language. If {lang} is Telugu, use Telugu script."
+    target_lang = get_language_full_name(lang)
 
     prompt = f"""
 Role: Senior Clinical Dietitian.
 User Profile Conditions: {profile.get('conditions', 'General Health')}
 Food/Product: {food}
-Target Language: {lang}
+Target Language: {target_lang}
 
-{lang_instruction}
+STRICT INSTRUCTION: Respond ONLY in {target_lang}. All descriptions and names must be in {target_lang} script.
 
 Return ONLY a JSON object:
 {{
-"foodName": "{food}",
-"status": "Safe/Caution/Unsafe",
-"explanation": "2-3 sentence clinical verdict in {lang}.",
+"foodName": "Food name in {target_lang}",
+"status": "Safe/Caution/Unsafe (Translated)",
+"explanation": "2-3 sentence clinical verdict in {target_lang}.",
 "healthScore": 1-10,
 "macros": {{"calories": "kcal","protein":"g","carbs":"g","fats":"g","fiber":"g"}},
-"risks": ["point1 in {lang}", "point2 in {lang}"],
-"alternatives": ["alt1 in {lang}", "alt2 in {lang}"],
-"tips": ["tip1 in {lang}", "tip2 in {lang}"]
+"risks": ["point1 in {target_lang}", "point2 in {target_lang}"],
+"alternatives": ["alt1 in {target_lang}", "alt2 in {target_lang}"],
+"tips": ["tip1 in {target_lang}", "tip2 in {target_lang}"]
 }}
 """
 
@@ -86,14 +100,14 @@ Return ONLY a JSON object:
             model=MODEL,
             response_format={"type": "json_object"},
             messages=[
-                {"role":"system","content":f"You are a clinical nutrition expert fluent in {lang}."},
+                {"role":"system","content":f"You are a clinical nutrition expert providing output in {target_lang}."},
                 {"role":"user","content":prompt}
             ]
         )
         return json.loads(res.choices[0].message.content)
     except Exception as e:
-        print("Groq Error:",e)
-        return {"foodName":food,"status":"Error","explanation":"Analysis failed"}
+        print("Groq Error:", e)
+        return {"foodName": food, "status": "Error", "explanation": "Analysis failed"}
 
 # ====================================
 # 2. RECIPES ENGINE
@@ -105,30 +119,31 @@ def recipes():
         ingredients = data.get("ingredients","")
         profile = data.get("profile",{})
         lang = profile.get("language","en")
+        target_lang = get_language_full_name(lang)
         conditions = ", ".join(profile.get("conditions", []))
 
         prompt = f"""
-        Role: Professional Nutritionist & Chef.
-        Task: Suggest EXACTLY 5 professional recipes based on ingredients: {ingredients}.
-        Medical Safety: Must be safe for {conditions}.
-        Language: {lang}.
+Role: Professional Nutritionist & Chef.
+Task: Suggest EXACTLY 5 professional recipes based on ingredients: {ingredients}.
+Medical Safety: Must be safe for {conditions}.
+STRICT LANGUAGE RULE: The entire response must be in {target_lang}.
 
-        Format: Return ONLY a JSON object. No conversational filler.
-        {{
-          "recipes": [
-            {{
-              "id": "unique_id_1",
-              "name": "Recipe Name",
-              "why": "Clinical benefit for the user",
-              "ingredients": ["item 1", "item 2"],
-              "procedure": "1. Step one\\n2. Step two (8-10 steps total)",
-              "calories": "350",
-              "prepTime": "25 mins"
-            }}
-          ],
-          "intro": "Based on your health profile and available ingredients, here are 5 curated recipe recommendations."
-        }}
-        """
+Format: Return ONLY a JSON object.
+{{
+  "recipes": [
+    {{
+      "id": "unique_id_1",
+      "name": "Recipe Name in {target_lang}",
+      "why": "Clinical benefit in {target_lang}",
+      "ingredients": ["item 1 in {target_lang}", "item 2 in {target_lang}"],
+      "procedure": "Steps in {target_lang} (1. Step one\\n2. Step two...)",
+      "calories": "350",
+      "prepTime": "25 mins"
+    }}
+  ],
+  "intro": "Personalized intro in {target_lang}."
+}}
+"""
 
         res = client.chat.completions.create(
             model=MODEL,
@@ -138,7 +153,7 @@ def recipes():
         )
         return jsonify(json.loads(res.choices[0].message.content))
     except Exception as e:
-        return jsonify({"recipes":[], "intro": "An error occurred while generating recipes."})
+        return jsonify({"recipes":[], "intro": "Error generating recipes."})
 
 # ====================================
 # 3. CHAT ENGINE
@@ -150,18 +165,19 @@ def chat():
         msg = data.get("message")
         profile = data.get("profile",{})
         lang = profile.get("language","en")
+        target_lang = get_language_full_name(lang)
         conditions = ", ".join(profile.get("conditions", []))
 
-        # Professional health assistant rules
-        system_msg = f"""You are SmartBite AI, a professional health and nutrition assistant. 
-        Respond in {lang}. 
+        system_msg = f"""You are SmartBite AI, a professional health assistant. 
+        You MUST respond ONLY in {target_lang} script.
         Conditions: {conditions}.
 
         STYLE RULES:
-        1. Be formal and respectful. Use 'Sir/Madam' or neutral address.
-        2. Avoid any local slang or informal language.
-        3. Provide accurate, clinical-based nutrition advice.
-        4. Keep responses concise and well-structured using bullet points."""
+        1. Be supportive, professional, and direct. 
+        2. DO NOT use 'Sir', 'Madam', or any informal slang. 
+        3. Maintain a neutral, helpful tone.
+        4. Use {target_lang} for the entire conversation.
+        5. Provide accurate, clinical-based nutrition advice in bullet points."""
 
         res = client.chat.completions.create(
             model=MODEL,
@@ -175,7 +191,8 @@ def chat():
 
     except Exception as e:
         print("Chat Error:", e)
-        return jsonify({"text":"Service is currently unavailable. Please try again later."})
+        return jsonify({"text":"Service is currently unavailable."})
+
 # ====================================
 # 4. OCR ANALYZE
 # ====================================
@@ -185,14 +202,10 @@ def ocr_analyze():
         data = request.json
         text = data.get("text","Food Label")
         lang = data.get("profile",{}).get("language","en")
-
         analysis = groq_analyze(data.get("profile",{}), text, lang)
         analysis["ocrText"] = text
-
         return jsonify(analysis)
-
     except Exception as e:
-        print("OCR Error:",e)
         return jsonify({"error":str(e)}),500
 
 # ====================================
@@ -203,7 +216,6 @@ def plate_detect():
     try:
         data = request.json
         image_b64 = data.get("imageB64")
-
         if "," in image_b64:
             image_b64 = image_b64.split(",")[1]
 
@@ -213,7 +225,6 @@ def plate_detect():
             headers={"Content-Type":"application/x-www-form-urlencoded"},
             timeout=10
         )
-
         rf_data = rf_res.json()
 
         preds = []
@@ -226,14 +237,10 @@ def plate_detect():
         detected = ", ".join(list(set(detected_list))) if detected_list else "Healthy Plate"
 
         lang = data.get("profile",{}).get("language","en")
-
         analysis = groq_analyze(data.get("profile",{}), detected, lang)
         analysis["detectedFoods"] = detected
-
         return jsonify(analysis)
-
     except Exception as e:
-        print("Plate Detect Error:",e)
         return jsonify({"error":"Detection failed"}),500
 
 # ====================================
@@ -245,12 +252,8 @@ def analyze():
     profile = data.get("profile",{})
     text = data.get("text","")
     lang = profile.get("language","en")
+    return jsonify(groq_analyze(profile, text, lang))
 
-    return jsonify(groq_analyze(profile,text,lang))
-
-# ====================================
-# SERVER START
-# ====================================
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT",5000))
+    port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
