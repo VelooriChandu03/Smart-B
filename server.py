@@ -115,7 +115,7 @@ def recipes():
         - Energetic and helpful tone.
 
         DISH SELECTION RULES:
-        1. Nuvvu ichina ingredients batti EXACTLY 3 DIFFERENT DISH OPTIONS suggest cheyyali.
+        1. Nuvvu ichina ingredients batti EXACTLY 5 DIFFERENT DISH OPTIONS suggest cheyyali.
         2. For each dish, provide a detailed 8-10 step procedure.
         3. Choose dishes that are safe for the user's medical condition: {conditions}.
 
@@ -129,7 +129,7 @@ def recipes():
               "procedure": "Detailed 8-10 steps"
             }}
           ],
-          "intro": "Idigo mama/bangaram, nee daggara unna items tho ee 3 racha dishes cheyochu. Edi kavalo select chesko!"
+          "intro": "Idigo mama/bangaram, nee daggara unna items tho ee 5 racha dishes cheyochu. Edi kavalo select chesko!"
         }}
         """
 
