@@ -112,6 +112,9 @@ Return ONLY a JSON object:
 # ====================================
 # 2. RECIPES ENGINE
 # ====================================
+# ====================================
+# 2. RECIPES ENGINE (UPDATED FOR 10 STEPS)
+# ====================================
 @app.route("/recipes", methods=["POST"])
 def recipes():
     try:
@@ -128,6 +131,10 @@ Task: Suggest EXACTLY 5 professional recipes based on ingredients: {ingredients}
 Medical Safety: Must be safe for {conditions}.
 STRICT LANGUAGE RULE: The entire response must be in {target_lang}.
 
+STRICT PROCEDURE RULE: 
+The "procedure" MUST contain EXACTLY 10 detailed steps, from preparation to final serving. 
+Format the steps as: "1. Step description\\n2. Step description... up to 10."
+
 Format: Return ONLY a JSON object.
 {{
   "recipes": [
@@ -136,7 +143,7 @@ Format: Return ONLY a JSON object.
       "name": "Recipe Name in {target_lang}",
       "why": "Clinical benefit in {target_lang}",
       "ingredients": ["item 1 in {target_lang}", "item 2 in {target_lang}"],
-      "procedure": "Steps in {target_lang} (1. Step one\\n2. Step two...)",
+      "procedure": "1. [Step 1 description in {target_lang}]\\n2. [Step 2 description in {target_lang}]\\n...\\n10. [Final step in {target_lang}]",
       "calories": "350",
       "prepTime": "25 mins"
     }}
@@ -153,8 +160,8 @@ Format: Return ONLY a JSON object.
         )
         return jsonify(json.loads(res.choices[0].message.content))
     except Exception as e:
+        print("Recipe Error:", e)
         return jsonify({"recipes":[], "intro": "Error generating recipes."})
-
 # ====================================
 # 3. CHAT ENGINE
 # ====================================
