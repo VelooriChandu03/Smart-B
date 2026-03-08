@@ -107,30 +107,26 @@ def recipes():
         lang = profile.get("language","en")
         conditions = ", ".join(profile.get("conditions", []))
 
-        # Massy slang teesi, professional ga marchina prompt
         prompt = f"""
-        You are SmartBite AI Chef. Respond in {lang}.
+        Role: Professional Nutritionist & Chef.
+        Task: Suggest EXACTLY 5 professional recipes based on ingredients: {ingredients}.
+        Medical Safety: Must be safe for {conditions}.
+        Language: {lang}.
 
-        STYLE:
-        - Use a professional, clinical, and helpful tone.
-        - Avoid slang or informal greetings.
-
-        DISH SELECTION RULES:
-        1. Based on the provided ingredients, suggest EXACTLY 5 DIFFERENT DISH OPTIONS.
-        2. For each dish, provide a detailed 8-10 step procedure.
-        3. Ensure all dishes are medically safe for: {conditions}.
-
-        Return ONLY a JSON object with this structure:
+        Format: Return ONLY a JSON object. No conversational filler.
         {{
           "recipes": [
             {{
-              "name": "Professional Dish Name",
-              "why": "Scientific health benefit regarding {conditions}",
-              "ingredients": ["item1", "item2"],
-              "procedure": "1. Step one... 2. Step two... (Detailed 8-10 steps)"
+              "id": "unique_id_1",
+              "name": "Recipe Name",
+              "why": "Clinical benefit for the user",
+              "ingredients": ["item 1", "item 2"],
+              "procedure": "1. Step one\\n2. Step two (8-10 steps total)",
+              "calories": "350",
+              "prepTime": "25 mins"
             }}
           ],
-          "intro": "Based on your ingredients and health profile, here are 5 recommended recipes."
+          "intro": "Based on your health profile and available ingredients, here are 5 curated recipe recommendations."
         }}
         """
 
@@ -140,12 +136,9 @@ def recipes():
             messages=[{"role":"user","content":prompt}],
             temperature=0.3
         )
-
         return jsonify(json.loads(res.choices[0].message.content))
-
     except Exception as e:
-        print("Recipe Error:",e)
-        return jsonify({"recipes":[], "intro": "Unable to process recipes at the moment."})
+        return jsonify({"recipes":[], "intro": "An error occurred while generating recipes."})
 
 # ====================================
 # 3. CHAT ENGINE
