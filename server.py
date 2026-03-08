@@ -107,29 +107,30 @@ def recipes():
         lang = profile.get("language","en")
         conditions = ", ".join(profile.get("conditions", []))
 
+        # Massy slang teesi, professional ga marchina prompt
         prompt = f"""
         You are SmartBite AI Chef. Respond in {lang}.
 
         STYLE:
-        - Use Massy local slang (Mama/Bangaram).
-        - Energetic and helpful tone.
+        - Use a professional, clinical, and helpful tone.
+        - Avoid slang or informal greetings.
 
         DISH SELECTION RULES:
-        1. Nuvvu ichina ingredients batti EXACTLY 5 DIFFERENT DISH OPTIONS suggest cheyyali.
+        1. Based on the provided ingredients, suggest EXACTLY 5 DIFFERENT DISH OPTIONS.
         2. For each dish, provide a detailed 8-10 step procedure.
-        3. Choose dishes that are safe for the user's medical condition: {conditions}.
+        3. Ensure all dishes are medically safe for: {conditions}.
 
-        Return ONLY a JSON object with a 'recipes' key containing a list of 3 dishes:
+        Return ONLY a JSON object with this structure:
         {{
           "recipes": [
             {{
-              "name": "Dish Name",
-              "why": "Health benefit line",
+              "name": "Professional Dish Name",
+              "why": "Scientific health benefit regarding {conditions}",
               "ingredients": ["item1", "item2"],
-              "procedure": "Detailed 8-10 steps"
+              "procedure": "1. Step one... 2. Step two... (Detailed 8-10 steps)"
             }}
           ],
-          "intro": "Idigo mama/bangaram, nee daggara unna items tho ee 5 racha dishes cheyochu. Edi kavalo select chesko!"
+          "intro": "Based on your ingredients and health profile, here are 5 recommended recipes."
         }}
         """
 
@@ -144,7 +145,7 @@ def recipes():
 
     except Exception as e:
         print("Recipe Error:",e)
-        return jsonify({"recipes":[], "intro": "System busy mama!"})
+        return jsonify({"recipes":[], "intro": "Unable to process recipes at the moment."})
 
 # ====================================
 # 3. CHAT ENGINE
@@ -156,17 +157,18 @@ def chat():
         msg = data.get("message")
         profile = data.get("profile",{})
         lang = profile.get("language","en")
-        gender = profile.get("gender", "male")
         conditions = ", ".join(profile.get("conditions", []))
 
-        system_msg = f"""You are SmartBite AI. Respond in {lang}. 
-        User Gender: {gender}.
+        # Professional health assistant rules
+        system_msg = f"""You are SmartBite AI, a professional health and nutrition assistant. 
+        Respond in {lang}. 
         Conditions: {conditions}.
 
         STYLE RULES:
-        1. If Male: Use 'Mama', 'Bhaiya'. If Female: Use 'Bangaram', 'Chelli'.
-        2. Use Massy local slang (e.g., 'Gattiga', 'Sakkaga', 'Racha').
-        3. Keep it very short. Use Bullet points. No long paragraphs."""
+        1. Be formal and respectful. Use 'Sir/Madam' or neutral address.
+        2. Avoid any local slang or informal language.
+        3. Provide accurate, clinical-based nutrition advice.
+        4. Keep responses concise and well-structured using bullet points."""
 
         res = client.chat.completions.create(
             model=MODEL,
@@ -180,8 +182,7 @@ def chat():
 
     except Exception as e:
         print("Chat Error:", e)
-        return jsonify({"text":"System busy mama!"})
-
+        return jsonify({"text":"Service is currently unavailable. Please try again later."})
 # ====================================
 # 4. OCR ANALYZE
 # ====================================
