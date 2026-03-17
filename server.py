@@ -15,12 +15,17 @@ from groq import Groq
 app = Flask(__name__)
 CORS(app)
 
-# ENV VARIABLES
+# ====================================
+# CONFIGURATION & ENV VARIABLES
+# ====================================
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 ROBOFLOW_API_KEY = os.environ.get("ROBOFLOW_API_KEY")
 ROBOFLOW_WORKFLOW_URL = os.environ.get("ROBOFLOW_WORKFLOW_URL")
 
-MODEL = "llama-3.3-70b-versatile"
+# Using the most versatile models for text and vision
+MODEL_TEXT = "llama-3.3-70b-versatile"
+MODEL_VISION = "llama-3.2-11b-vision-preview"
+
 client = Groq(api_key=GROQ_API_KEY)
 
 # Language Mapping Helper
@@ -28,9 +33,9 @@ def get_language_full_name(lang_code):
     mapping = {
         "en": "English",
         "te": "Telugu (తెలుగు)",
-        "hi": "Hindi (हिन्दी)",
+        "hi": "Hindi (హిन्दी)",
         "ta": "Tamil (தமிழ்)",
-        "kn": "Kannada (ಕನ್ನಡ)",
+        "kn": "Kannada (కನ್ನಡ)",
         "gu": "Gujarati (ગુજરાતી)",
         "bn": "Bengali (বাংলা)",
         "mr": "Marathi (మరాఠీ)"
@@ -38,7 +43,7 @@ def get_language_full_name(lang_code):
     return mapping.get(lang_code, "English")
 
 # ====================================
-# ADVANCED OCR HELPERS
+# ADVANCED OCR & IMAGE HELPERS
 # ====================================
 @app.route("/")
 def home():
@@ -97,7 +102,7 @@ Return ONLY a JSON object:
 
     try:
         res = client.chat.completions.create(
-            model=MODEL,
+            model=MODEL_TEXT,
             response_format={"type": "json_object"},
             messages=[
                 {"role":"system","content":f"You are a clinical nutrition expert providing output in {target_lang}."},
@@ -110,10 +115,7 @@ Return ONLY a JSON object:
         return {"foodName": food, "status": "Error", "explanation": "Analysis failed"}
 
 # ====================================
-# 2. RECIPES ENGINE
-# ====================================
-# ====================================
-# 2. RECIPES ENGINE (UPDATED FOR 10 STEPS)
+# 2. RECIPES ENGINE (10 STEPS)
 # ====================================
 @app.route("/recipes", methods=["POST"])
 def recipes():
@@ -153,7 +155,7 @@ Format: Return ONLY a JSON object.
 """
 
         res = client.chat.completions.create(
-            model=MODEL,
+            model=MODEL_TEXT,
             response_format={"type":"json_object"},
             messages=[{"role":"user","content":prompt}],
             temperature=0.3
@@ -162,8 +164,9 @@ Format: Return ONLY a JSON object.
     except Exception as e:
         print("Recipe Error:", e)
         return jsonify({"recipes":[], "intro": "Error generating recipes."})
+
 # ====================================
-# 3. CHAT ENGINE
+# 3. CHAT ENGINE (PROFESSIONAL & NEUTRAL)
 # ====================================
 @app.route("/chat", methods=["POST"])
 def chat():
@@ -187,7 +190,7 @@ def chat():
         5. Provide accurate, clinical-based nutrition advice in bullet points."""
 
         res = client.chat.completions.create(
-            model=MODEL,
+            model=MODEL_TEXT,
             messages=[
                 {"role":"system","content":system_msg},
                 {"role":"user","content":msg}
@@ -216,39 +219,50 @@ def ocr_analyze():
         return jsonify({"error":str(e)}),500
 
 # ====================================
-# 5. PLATE DETECTION
+# 5. PLATE DETECTION (FIXED: VISION UPGRADE)
 # ====================================
 @app.route("/plate-detect", methods=["POST"])
 def plate_detect():
     try:
         data = request.json
         image_b64 = data.get("imageB64")
+        profile = data.get("profile", {})
+        lang = profile.get("language", "en")
+        target_lang = get_language_full_name(lang)
+
         if "," in image_b64:
             image_b64 = image_b64.split(",")[1]
 
-        rf_res = requests.post(
-            f"{ROBOFLOW_WORKFLOW_URL}?api_key={ROBOFLOW_API_KEY}",
-            data=image_b64,
-            headers={"Content-Type":"application/x-www-form-urlencoded"},
-            timeout=10
+        # Use Groq Llama 3.2 Vision to identify food directly.
+        # This replaces traditional object detection for better accuracy.
+        vision_res = client.chat.completions.create(
+            model=MODEL_VISION,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Identify all the food items in this image. List only the food names separated by commas. If no food is found, say 'Unknown Item'."},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"},
+                        },
+                    ],
+                }
+            ],
         )
-        rf_data = rf_res.json()
+        
+        detected = vision_res.choices[0].message.content
+        print(f"Vision Recognition: {detected}")
 
-        preds = []
-        if 'outputs' in rf_data and len(rf_data['outputs'])>0:
-            preds = rf_data['outputs'][0].get('predictions',[])
-        elif 'predictions' in rf_data:
-            preds = rf_data['predictions']
-
-        detected_list = [p.get('class') for p in preds if p.get('confidence',0)>0.4]
-        detected = ", ".join(list(set(detected_list))) if detected_list else "Healthy Plate"
-
-        lang = data.get("profile",{}).get("language","en")
-        analysis = groq_analyze(data.get("profile",{}), detected, lang)
+        # Process the detected items through the clinical analysis engine
+        analysis = groq_analyze(profile, detected, lang)
         analysis["detectedFoods"] = detected
+        
         return jsonify(analysis)
+
     except Exception as e:
-        return jsonify({"error":"Detection failed"}),500
+        print("Plate Detect Error:", e)
+        return jsonify({"error": "Food recognition failed. Please try a clearer photo."}), 500
 
 # ====================================
 # 6. TEXT ANALYSIS
@@ -261,6 +275,10 @@ def analyze():
     lang = profile.get("language","en")
     return jsonify(groq_analyze(profile, text, lang))
 
+# ====================================
+# SERVER START (KOYEB DYNAMIC PORT)
+# ====================================
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+    # Koyeb assigns a port via the PORT environment variable
+    port = int(os.environ.get("PORT", 8000))
     app.run(host="0.0.0.0", port=port)
