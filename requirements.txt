@@ -1,8 +1,9 @@
 flask
 flask-cors
-opencv-python
-numpy
-pillow
-requests
 groq
-google-genai
+requests
+numpy
+opencv-python-headless
+Pillow
+gunicorn
+python-dotenv
